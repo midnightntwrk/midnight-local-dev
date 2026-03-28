@@ -1,4 +1,4 @@
-import * as ledger from '@midnight-ntwrk/ledger-v7';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
 import { type DefaultConfiguration, WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
 import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';

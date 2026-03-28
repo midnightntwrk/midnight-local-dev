@@ -11,15 +11,15 @@
     "start": "node --experimental-specifier-resolution=node --loader ts-node/esm src/index.ts"
   },
   "dependencies": {
-    "@midnight-ntwrk/ledger-v7": "7.0.2",
-    "@midnight-ntwrk/midnight-js-network-id": "3.1.0",
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.2",
     "@midnight-ntwrk/wallet-sdk-abstractions": "2.0.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "3.0.1",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "2.0.0",
-    "@midnight-ntwrk/wallet-sdk-facade": "2.0.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
     "@midnight-ntwrk/wallet-sdk-hd": "3.0.1",
-    "@midnight-ntwrk/wallet-sdk-shielded": "2.0.0",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.0.0",
+    "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
     "@scure/bip39": "^2.0.1",
     "dotenv": "^17.2.3",
     "pino": "^10.1.0",
@@ -35,7 +35,7 @@
     "typescript": "^5.9.3"
   },
   "resolutions": {
-    "@midnight-ntwrk/ledger-v7": "7.0.2",
-    "@midnight-ntwrk/midnight-js-network-id": "3.1.0"
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.2"
   }
 }
