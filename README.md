@@ -92,23 +92,23 @@ All services use the `undeployed` network ID with the `dev` node preset.
 
 | Service | Image | Version |
 |---|---|---|
-| Node | `midnightntwrk/midnight-node` | `0.21.0` |
-| Indexer | `midnightntwrk/indexer-standalone` | `3.1.0` |
-| Proof Server | `midnightntwrk/proof-server` | `7.0.0` |
+| Node | `midnightntwrk/midnight-node` | `0.22.3` |
+| Indexer | `midnightntwrk/indexer-standalone` | `4.0.1` |
+| Proof Server | `midnightntwrk/proof-server` | `8.0.3` |
 
 ### Wallet SDK Compatibility Matrix
 
 | Package | Version |
 |---|---|
-| `@midnight-ntwrk/wallet-sdk-facade` | 2.0.0 |
+| `@midnight-ntwrk/wallet-sdk-facade` | 3.0.0 |
 | `@midnight-ntwrk/wallet-sdk-abstractions` | 2.0.0 |
-| `@midnight-ntwrk/wallet-sdk-shielded` | 2.0.0 |
-| `@midnight-ntwrk/wallet-sdk-dust-wallet` | 2.0.0 |
-| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 2.0.0 |
-| `@midnight-ntwrk/wallet-sdk-address-format` | 3.0.1 |
+| `@midnight-ntwrk/wallet-sdk-shielded` | 2.1.0 |
+| `@midnight-ntwrk/wallet-sdk-dust-wallet` | 3.0.0 |
+| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 2.1.0 |
+| `@midnight-ntwrk/wallet-sdk-address-format` | 3.1.0 |
 | `@midnight-ntwrk/wallet-sdk-hd` | 3.0.1 |
-| `@midnight-ntwrk/ledger-v7` | 7.0.2 |
-| `@midnight-ntwrk/midnight-js-network-id` | 3.1.0 |
+| `@midnight-ntwrk/ledger-v8` | 8.0.3 |
+| `@midnight-ntwrk/midnight-js-network-id` | 4.0.2 |
 
 ---
 
