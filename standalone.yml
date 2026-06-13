@@ -9,7 +9,7 @@ services:
       RUST_BACKTRACE: 'full'
   indexer:
     container_name: 'midnight-indexer'
-    image: 'midnightntwrk/indexer-standalone:4.0.0'
+    image: 'midnightntwrk/indexer-standalone:4.0.1'
     env_file: standalone.env.example
     ports:
       - '127.0.0.1:8088:8088'
@@ -27,7 +27,7 @@ services:
         condition: service_healthy
 
   node:
-    image: 'midnightntwrk/midnight-node:0.22.2'
+    image: 'midnightntwrk/midnight-node:0.22.3'
     container_name: 'midnight-node'
     ports:
       - '127.0.0.1:9944:9944'
