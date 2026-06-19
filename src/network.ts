@@ -10,8 +10,9 @@ const CONTAINER_NAMES = ['midnight-node', 'midnight-indexer', 'midnight-proof-se
 export const createDockerEnv = (): DockerComposeEnvironment => {
   return new DockerComposeEnvironment(path.resolve(currentDir, '..'), 'standalone.yml')
     .withProjectName('midnight-local-dev')
-    .withWaitStrategy('midnight-proof-server', Wait.forLogMessage('Actix runtime found; starting in Actix runtime', 1))
-    .withWaitStrategy('midnight-indexer', Wait.forLogMessage(/starting indexing/, 1));
+    .withWaitStrategy('midnight-proof-server', Wait.forHealthCheck())
+    .withWaitStrategy('midnight-node', Wait.forHealthCheck())
+    .withWaitStrategy('midnight-indexer', Wait.forHealthCheck());
 };
 
 /**

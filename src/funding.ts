@@ -1,12 +1,11 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+import { nativeToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk';
 import pino, { type Logger } from 'pino';
 import {
   type WalletContext,
-  mnemonicToSeed,
-  initWalletWithSeed,
+  buildWallet,
   waitForSync,
   waitForFunds,
   displayWalletBalances,
@@ -56,7 +55,7 @@ async function transferNight(
     [{
       type: 'unshielded',
       outputs: [{
-        type: ledger.nativeToken().raw,
+        type: nativeToken().raw,
         receiverAddress,
         amount,
       }],
@@ -110,9 +109,8 @@ export async function fundFromConfigFile(
     const account = accountsFile.accounts[i];
     logger.info(`\n--- Account ${i + 1}/${accountsFile.accounts.length}: ${account.name} ---`);
 
-    // Derive wallet from mnemonic to get address
-    const seed = await mnemonicToSeed(account.mnemonic);
-    const recipientWallet = await initWalletWithSeed(seed, config);
+    // Build recipient wallet from mnemonic and start it so we can observe funds
+    const recipientWallet = await buildWallet(config, { kind: 'mnemonic', value: account.mnemonic });
     const recipientAddress = await recipientWallet.wallet.unshielded.getAddress();
     logger.info(`Recipient address: ${recipientWallet.unshieldedKeystore.getBech32Address().asString()}`);
 

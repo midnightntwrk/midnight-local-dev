@@ -6,7 +6,7 @@
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,

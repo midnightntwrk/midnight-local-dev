@@ -3,3 +3,4 @@ dist/
 logs/
 .env
 accounts.json
+/.midnight-expert
