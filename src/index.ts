@@ -140,6 +140,7 @@ async function main(): Promise<void> {
     // 5. Interactive menu
     await mainMenu(masterWallet, config, rli, logger);
   } catch (e) {
+    process.exitCode = 1;
     if (e instanceof Error) {
       logger.error(`Fatal error: ${e.message}`);
       logger.debug(`${e.stack}`);
@@ -170,4 +171,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(console.error);
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
