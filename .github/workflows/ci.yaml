@@ -39,12 +39,9 @@ jobs:
         run: docker compose -f standalone.yml pull
 
       - name: Run end-to-end smoke test
-        # Drives the interactive CLI through:
-        #   1) fund accounts from the example config (NIGHT transfer + DUST registration)
-        #   4) exit
         # Verifies the whole pipeline: network startup, master wallet init,
         # DUST registration, NIGHT transfer, recipient DUST registration.
-        run: printf '1\n./accounts.example.json\n4\n' | npm start
+        run: npm start -- --fund-config ./accounts.example.json
 
       - name: Stop local Midnight network
         if: always()

@@ -100,13 +100,26 @@ async function mainMenu(
   }
 }
 
+function parseFundConfigArg(argv: readonly string[]): string | null {
+  const idx = argv.indexOf('--fund-config');
+  if (idx < 0) return null;
+  const value = argv[idx + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error('--fund-config requires a path argument');
+  }
+  return value;
+}
+
 async function main(): Promise<void> {
   const config = new StandaloneConfig();
   const logger = await createLogger(config.logDir);
   setWalletLogger(logger);
   setFundingLogger(logger);
 
-  const rli = createInterface({ input, output, terminal: true });
+  const fundConfigPath = parseFundConfigArg(process.argv.slice(2));
+  const nonInteractive = fundConfigPath !== null;
+
+  const rli = nonInteractive ? null : createInterface({ input, output, terminal: true });
   let env: StartedDockerComposeEnvironment | undefined;
   let masterWallet: WalletContext | null = null;
 
@@ -114,13 +127,17 @@ async function main(): Promise<void> {
     // 1. Detect or start docker compose network
     if (isNetworkRunning()) {
       logger.info('Detected a running Midnight local network.');
-      const startChoice = await rli.question(
-        '\nA local dev network is already running:\n  [1] Use the existing network\n  [2] Stop containers, pull latest images, and restart\n> ',
-      );
-      if (startChoice.trim() === '2') {
-        env = await freshStart(config, logger);
+      if (nonInteractive) {
+        logger.info('Reusing existing network (non-interactive mode).');
       } else {
-        logger.info('Using existing network.');
+        const startChoice = await rli!.question(
+          '\nA local dev network is already running:\n  [1] Use the existing network\n  [2] Stop containers, pull latest images, and restart\n> ',
+        );
+        if (startChoice.trim() === '2') {
+          env = await freshStart(config, logger);
+        } else {
+          logger.info('Using existing network.');
+        }
       }
     } else {
       env = await startNetwork(config, logger);
@@ -137,8 +154,14 @@ async function main(): Promise<void> {
     // 4. Show master wallet balances
     await displayWalletBalances(masterWallet, config);
 
-    // 5. Interactive menu
-    await mainMenu(masterWallet, config, rli, logger);
+    // 5. Fund non-interactively, or fall through to the interactive menu
+    if (nonInteractive) {
+      logger.info(`Funding accounts from ${fundConfigPath} (non-interactive mode)...`);
+      const accounts = await fundFromConfigFile(masterWallet, fundConfigPath!, config);
+      displayFundedAccounts(accounts, logger);
+    } else {
+      await mainMenu(masterWallet, config, rli!, logger);
+    }
   } catch (e) {
     process.exitCode = 1;
     if (e instanceof Error) {
@@ -148,11 +171,13 @@ async function main(): Promise<void> {
       throw e;
     }
   } finally {
-    try {
-      rli.close();
-      rli.removeAllListeners();
-    } catch (e) {
-      logger.error(`Error closing readline interface: ${e}`);
+    if (rli !== null) {
+      try {
+        rli.close();
+        rli.removeAllListeners();
+      } catch (e) {
+        logger.error(`Error closing readline interface: ${e}`);
+      }
     }
     try {
       if (masterWallet !== null) {
