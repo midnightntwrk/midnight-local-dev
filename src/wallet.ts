@@ -157,8 +157,12 @@ export const registerNightForDust = async (walletContext: WalletContext): Promis
 
   if (unregisteredNightUtxos.length === 0) {
     const dustBalance = state.dust?.balance(new Date()) ?? 0n;
-    logger.info(`No NIGHT UTXOs need registration. Current DUST balance: ${dustBalance}`);
-    return dustBalance > 0n;
+    const dustCoins = state.dust?.availableCoins.length ?? 0;
+    logger.info(`No NIGHT UTXOs need registration. DUST balance: ${dustBalance}, spendable coins: ${dustCoins}`);
+    if (dustCoins >= 1) return true;
+    logger.info('Waiting for a spendable DUST coin to appear...');
+    await waitForSpendableDust(walletContext);
+    return true;
   }
 
   logger.info(`Registering ${unregisteredNightUtxos.length} NIGHT UTXO(s) for DUST generation...`);
@@ -172,17 +176,43 @@ export const registerNightForDust = async (walletContext: WalletContext): Promis
   const txId = await walletContext.wallet.submitTransaction(finalizedTx);
   logger.info(`DUST registration submitted: ${txId}`);
 
-  logger.info('Waiting for DUST to be generated...');
+  await waitForSpendableDust(walletContext);
+  logger.info('DUST registration complete.');
+  return true;
+};
+
+/**
+ * Wait until the wallet has at least one *spendable* DUST coin.
+ *
+ * After registering NIGHT UTXOs for DUST generation, `state.dust.balance(now)`
+ * becomes non-zero as the dust accrues, but a spendable UTXO is not minted
+ * until the chain produces blocks that account for the accrual. Submitting a
+ * transaction during that window fails with "insufficient DUST". Waiting on
+ * `availableCoins.length >= 1` (instead of `balance > 0`) is the correct
+ * readiness signal.
+ */
+const SPENDABLE_DUST_TIMEOUT_MS = 180_000;
+
+export const waitForSpendableDust = async (
+  walletContext: WalletContext,
+  timeout = SPENDABLE_DUST_TIMEOUT_MS,
+): Promise<void> => {
+  logger.info('Waiting for a spendable DUST coin...');
   await Rx.firstValueFrom(
     walletContext.wallet.state().pipe(
       Rx.throttleTime(5_000),
-      Rx.tap((s) => logger.info(`DUST balance: ${s.dust?.balance(new Date()) ?? 0n}`)),
-      Rx.filter((s) => (s.dust?.balance(new Date()) ?? 0n) > 0n),
+      Rx.tap((s) => {
+        const balance = s.dust?.balance(new Date()) ?? 0n;
+        const coins = s.dust?.availableCoins.length ?? 0;
+        logger.info(`DUST balance: ${balance}, spendable coins: ${coins}`);
+      }),
+      Rx.filter((s) => (s.dust?.availableCoins.length ?? 0) >= 1),
+      Rx.timeout({
+        each: timeout,
+        with: () => Rx.throwError(() => new Error(`No spendable DUST coin within ${timeout}ms`)),
+      }),
     ),
   );
-
-  logger.info('DUST registration complete.');
-  return true;
 };
 
 export const buildWalletFromHexSeed = async (config: Config, hexSeed: string): Promise<WalletContext> => {
