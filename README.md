@@ -80,37 +80,13 @@ The local network runs three Docker containers on fixed ports:
 | Service | Container Name | Host Port | URL |
 |---|---|---|---|
 | **Midnight Node** | `midnight-node` | `9944` | `http://localhost:9944` |
-| **Indexer** (GraphQL) | `midnight-indexer` | `8088` | `http://localhost:8088/api/v3/graphql` |
-| **Indexer** (WebSocket) | `midnight-indexer` | `8088` | `ws://localhost:8088/api/v3/graphql/ws` |
+| **Indexer** (GraphQL) | `midnight-indexer` | `8088` | `http://localhost:8088/api/v4/graphql` |
+| **Indexer** (WebSocket) | `midnight-indexer` | `8088` | `ws://localhost:8088/api/v4/graphql/ws` |
 | **Proof Server** | `midnight-proof-server` | `6300` | `http://localhost:6300` |
 
 These ports match the defaults hardcoded by the **Lace wallet extension** when configured for the `undeployed` network type. This means Lace connects to the local network out of the box — no custom endpoint configuration required. Just select "Undeployed" in Lace's network settings and it will point to `localhost:9944`, `localhost:8088`, and `localhost:6300` automatically.
 
 All services use the `undeployed` network ID with the `dev` node preset.
-
-### Docker Images
-
-| Service | Image | Version |
-|---|---|---|
-| Node | `midnightntwrk/midnight-node` | `0.22.3` |
-| Indexer | `midnightntwrk/indexer-standalone` | `4.0.1` |
-| Proof Server | `midnightntwrk/proof-server` | `8.0.3` |
-
-### Wallet SDK Compatibility Matrix
-
-| Package | Version |
-|---|---|
-| `@midnight-ntwrk/wallet-sdk-facade` | 3.0.0 |
-| `@midnight-ntwrk/wallet-sdk-abstractions` | 2.0.0 |
-| `@midnight-ntwrk/wallet-sdk-shielded` | 2.1.0 |
-| `@midnight-ntwrk/wallet-sdk-dust-wallet` | 3.0.0 |
-| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 2.1.0 |
-| `@midnight-ntwrk/wallet-sdk-address-format` | 3.1.0 |
-| `@midnight-ntwrk/wallet-sdk-hd` | 3.0.1 |
-| `@midnight-ntwrk/ledger-v8` | 8.0.3 |
-| `@midnight-ntwrk/midnight-js-network-id` | 4.0.2 |
-
----
 
 ## Funding Options
 
@@ -171,8 +147,8 @@ import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 setNetworkId('undeployed');
 
 const config = {
-  indexer: 'http://127.0.0.1:8088/api/v3/graphql',
-  indexerWS: 'ws://127.0.0.1:8088/api/v3/graphql/ws',
+  indexer: 'http://127.0.0.1:8088/api/v4/graphql',
+  indexerWS: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
   node: 'http://127.0.0.1:9944',
   proofServer: 'http://127.0.0.1:6300',
   networkId: 'undeployed',
@@ -186,8 +162,8 @@ const config = {
 Point your UI's environment variables to the local endpoints:
 
 ```env
-VITE_INDEXER_URL=http://localhost:8088/api/v3/graphql
-VITE_INDEXER_WS_URL=ws://localhost:8088/api/v3/graphql/ws
+VITE_INDEXER_URL=http://localhost:8088/api/v4/graphql
+VITE_INDEXER_WS_URL=ws://localhost:8088/api/v4/graphql/ws
 VITE_NODE_URL=http://localhost:9944
 VITE_PROOF_SERVER_URL=http://localhost:6300
 VITE_NETWORK_ID=undeployed
