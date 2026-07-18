@@ -7,7 +7,7 @@ import {
 import {
   DustAddress,
   MidnightBech32m,
-  WalletFacade,
+  type WalletFacade,
   type FacadeState,
   type UnshieldedKeystore,
 } from '@midnight-ntwrk/wallet-sdk';
