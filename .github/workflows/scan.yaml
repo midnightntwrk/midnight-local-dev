@@ -9,14 +9,18 @@ on:
   workflow_dispatch: {}   # so you can still run it manually
   schedule:
     - cron: '0 0 * * *'   # run daily at midnight UTC
+# Keyed on the PR number, which is unique even across forks. On push, schedule
+# and workflow_dispatch there is no pull_request context, so `run_id` gives every
+# run its own group — previously all three collapsed into the single group
+# "Scan-", letting a push to main cancel the nightly scan.
 concurrency:
-  group:
-    ${{ github.event_name != 'merge_group' && format('{0}-{1}', github.workflow, github.head_ref) || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -25,6 +29,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  #v7.0.1
+        with:
+          # The scan action authenticates through its own token inputs
+          # (codeql-action/upload-sarif defaults to ${{ github.token }}) and
+          # performs no git network operations, so it does not need the
+          # credential checkout writes into .git/config.
+          persist-credentials: false
 
       - name: Scan code
         uses: midnightntwrk/upload-sarif-github-action@07dad711370cc5985885ebcf07cb8c9264bc4167

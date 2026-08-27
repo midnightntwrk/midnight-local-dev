@@ -1,0 +1,219 @@
+name: CI
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Keyed on the PR number rather than the branch name: `head_ref` carries no fork
+# owner, so two PRs from different forks that both use a branch called `main` or
+# `patch-1` would share a group and cancel each other. On push there is no
+# pull_request context, so `run_id` gives every run its own group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  devnet:
+    name: Devnet smoke test
+    # Runs directly on the runner, never inside a job-level `container:`. The
+    # client endpoints are hardcoded to 127.0.0.1 with no environment override,
+    # so from inside a job container that loopback would be the container's own
+    # and none of the three services would be reachable.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # accounts.json is gitignored, so a fresh checkout has none. One account is
+      # deliberate: every extra account costs a full funding round-trip. The file
+      # must sit inside the project directory — fundFromConfigFile rejects any
+      # path outside it, so $RUNNER_TEMP would be refused.
+      - name: Create accounts.json
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const { accounts } = JSON.parse(readFileSync("accounts.example.json", "utf8"));
+            writeFileSync("accounts.json", JSON.stringify({ accounts: accounts.slice(0, 1) }, null, 2));
+          '
+          cat accounts.json
+
+      # One command exercises the whole product: compose bring-up, genesis wallet
+      # init, DUST registration, the NIGHT transfer and teardown.
+      - name: Start devnet and fund accounts
+        env:
+          # Streams container output into the job log while it happens. A
+          # trailing `docker compose logs` step would collect nothing: the app's
+          # finally block calls env.down(), which removes the containers and
+          # their volumes before any later step could read them.
+          DEBUG: testcontainers*
+          DEVNET_TIMEOUT: 20m
+          HEALTH_TIMEOUT_SECONDS: '300'
+        run: |
+          set -o pipefail
+
+          # Health is asserted concurrently rather than afterwards, because the
+          # app tears the network down when it exits. It is asserted at all
+          # because testcontainers does not fail when a service dies during
+          # startup: a container that has already exited when the compose
+          # environment is listed has its wait strategy skipped with only a WARN,
+          # and the app then logs "Midnight standalone network is running." with
+          # a dead indexer.
+          ./scripts/assert-devnet-health.sh > devnet-health.log 2>&1 &
+          health_pid=$!
+
+          # `--fund-config` is the only non-interactive entry point. A bare
+          # `npm start` blocks forever on an interactive readline menu with no TTY.
+          # The `timeout` is defence in depth against the process failing to exit.
+          run_status=0
+          timeout --signal=TERM --kill-after=60s "${DEVNET_TIMEOUT}" \
+            npm start -- --fund-config ./accounts.json 2>&1 | tee devnet-run.log || run_status=$?
+
+          if [ "${run_status}" -eq 124 ]; then
+            echo "::error::npm start did not exit within ${DEVNET_TIMEOUT}."
+          fi
+
+          # Once the run is over the network is gone, so a still-polling watcher
+          # can never pass. Give it a short grace period, then stop waiting.
+          health_status=0
+          if wait "${health_pid}"; then
+            health_status=0
+          else
+            health_status=$?
+          fi
+
+          echo '----- devnet health assertions -----'
+          cat devnet-health.log
+
+          # The app's own failure is the more informative one, so report it first.
+          if [ "${run_status}" -ne 0 ]; then
+            exit "${run_status}"
+          fi
+          # A run cannot legitimately succeed while the health checks did not:
+          # the services were up for its whole duration. Treat anything other
+          # than a clean health verdict as a failure rather than a warning.
+          if [ "${health_status}" -ne 0 ]; then
+            echo "::error::Devnet health assertions did not pass (status ${health_status})."
+            exit 1
+          fi
+
+      # Exit 0 alone does not prove the run did anything. These markers come from
+      # src/network.ts, src/funding.ts and src/index.ts and span the whole path:
+      # compose bring-up, DUST registration, the NIGHT transfer and reporting.
+      - name: Assert success markers in run log
+        run: |
+          set -uo pipefail
+          expected=(
+            'Midnight standalone network is running.'
+            'Account Alice funded and DUST registered.'
+            'All 1 accounts funded with NIGHT + DUST.'
+            'Funded Accounts (1)'
+          )
+          missing=0
+          for marker in "${expected[@]}"; do
+            if grep -qF "${marker}" devnet-run.log; then
+              echo "  [ok] ${marker}"
+            else
+              echo "::error::Missing expected success marker: ${marker}"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Collect container logs
+        # `failure()` is false when a job is CANCELLED, and exceeding
+        # timeout-minutes cancels rather than fails — so `failure()` would drop
+        # diagnostics for exactly the runs that need them most.
+        if: ${{ !success() }}
+        run: |
+          for c in midnight-node midnight-indexer midnight-proof-server; do
+            echo "----- ${c} -----"
+            docker logs --tail 200 "${c}" 2>&1 || echo "no logs for ${c} (already removed)"
+          done > container-logs.txt
+          wc -l container-logs.txt
+
+      - name: Upload devnet logs
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: devnet-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            devnet-run.log
+            devnet-health.log
+            container-logs.txt
+            logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+      # The app's in-process teardown dies with the process, so a cancelled
+      # workflow or a timeout-minutes kill would leave containers behind on a
+      # self-hosted runner. It is also skipped entirely when a run reuses an
+      # already-running network.
+      - name: Tear down devnet
+        if: always()
+        run: npm run clean

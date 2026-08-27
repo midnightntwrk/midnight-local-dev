@@ -7,8 +7,13 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "clean": "docker rm -f midnight-node midnight-indexer midnight-proof-server 2>/dev/null; docker compose -f standalone.yml down --remove-orphans 2>/dev/null; true",
-    "start": "node --experimental-specifier-resolution=node --loader ts-node/esm src/index.ts"
+    "clean": "node scripts/clean.mjs",
+    "devnet:health": "bash scripts/assert-devnet-health.sh",
+    "prestart": "node scripts/preflight.mjs",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "pretest": "node -e \"const {globSync}=require('node:fs');const n=globSync('test/**/*.test.ts').length;if(!n){console.error('No test files matched test/**/*.test.ts');process.exit(1)}console.log(n+' test file(s)')\"",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
@@ -26,7 +31,7 @@
   "devDependencies": {
     "@types/node": "26.2.0",
     "@types/ws": "8.18.1",
-    "ts-node": "10.9.2",
+    "tsx": "4.23.1",
     "typescript": "6.0.3"
   }
 }
