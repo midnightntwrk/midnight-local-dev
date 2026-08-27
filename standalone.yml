@@ -4,7 +4,7 @@ services:
     image: 'midnightntwrk/proof-server:8.1.0'
     command: ['midnight-proof-server', '-v']
     ports:
-      - '127.0.0.1:6300:6300'
+      - '127.0.0.1:${MN_PROOF_SERVER_PORT:-6300}:6300'
     environment:
       RUST_BACKTRACE: 'full'
     healthcheck:
@@ -19,7 +19,7 @@ services:
     image: 'midnightntwrk/indexer-standalone:4.3.3'
     env_file: standalone.env.example
     ports:
-      - '127.0.0.1:8088:8088'
+      - '127.0.0.1:${MN_INDEXER_PORT:-8088}:8088'
     environment:
       RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info'
       APP__INFRA__NODE__URL: 'ws://node:9944'
@@ -44,12 +44,22 @@ services:
     image: 'midnightntwrk/midnight-node:1.0.0'
     container_name: 'midnight-node'
     ports:
-      - '127.0.0.1:9944:9944'
+      - '127.0.0.1:${MN_NODE_PORT:-9944}:9944'
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
+      # Gate on block #1 existing, not merely on the RPC port answering. The
+      # indexer's spo-indexer resolves block #1 immediately on startup and exits
+      # non-zero with "Cannot construct OnlineClientAtBlock: block number 1 not
+      # found" if the node is still at genesis, a race it loses by ~1s. The
+      # node answers /health well before it authors block #1, so a /health-only
+      # check lets `depends_on: service_healthy` release the indexer too early.
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"chain_getBlockHash\",\"params\":[1]}" http://localhost:9944 | grep -q "\"result\":\"0x"',
+        ]
       interval: 2s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 20s
     environment:
       CFG_PRESET: 'dev'

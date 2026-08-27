@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { createInterface, type Interface } from 'node:readline/promises';
 import { type StartedDockerComposeEnvironment } from 'testcontainers';
 import { type Logger } from 'pino';
+import { parseFundConfigArg } from './args.js';
 import { StandaloneConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { isNetworkRunning, startNetwork, freshStart, stopNetwork } from './network.js';
@@ -98,16 +99,6 @@ async function mainMenu(
       }
     }
   }
-}
-
-function parseFundConfigArg(argv: readonly string[]): string | null {
-  const idx = argv.indexOf('--fund-config');
-  if (idx < 0) return null;
-  const value = argv[idx + 1];
-  if (!value || value.startsWith('--')) {
-    throw new Error('--fund-config requires a path argument');
-  }
-  return value;
 }
 
 async function main(): Promise<void> {

@@ -74,6 +74,32 @@ function isStrictlyComplete(progress: unknown): boolean {
   return typeof fn === 'function' && (fn as () => boolean).call(progress);
 }
 
+/** Default ceiling for any wallet-state wait that has no more specific budget. */
+const DEFAULT_WAIT_TIMEOUT_MS = 300_000;
+
+/**
+ * `Rx.firstValueFrom` with a mandatory upper bound.
+ *
+ * Awaiting an unbounded `firstValueFrom` on a filtered wallet-state stream hangs
+ * forever when the predicate never becomes true — for example when the indexer
+ * stalls and sync progress never completes. Routing every wait through this
+ * helper makes the timeout impossible to omit and guarantees a diagnosable
+ * error instead of a silent hang.
+ */
+const firstValueFromBounded = <T>(
+  observable: Rx.Observable<T>,
+  label: string,
+  timeout: number = DEFAULT_WAIT_TIMEOUT_MS,
+): Promise<T> =>
+  Rx.firstValueFrom(
+    observable.pipe(
+      Rx.timeout({
+        each: timeout,
+        with: () => Rx.throwError(() => new Error(`${label} timed out after ${timeout}ms`)),
+      }),
+    ),
+  );
+
 export const waitForSync = (wallet: WalletFacade, timeout = 300_000): Promise<FacadeState> =>
   Rx.firstValueFrom(
     wallet.state().pipe(
@@ -124,7 +150,7 @@ export interface WalletBalances {
 }
 
 export const displayWalletBalances = async (walletContext: WalletContext, config: Config): Promise<WalletBalances> => {
-  const state = await Rx.firstValueFrom(walletContext.wallet.state());
+  const state = await firstValueFromBounded(walletContext.wallet.state(), 'Read wallet state');
   const unshielded = state.unshielded?.balances[nativeToken().raw] ?? 0n;
   const shielded = state.shielded?.balances[nativeToken().raw] ?? 0n;
   const dust = state.dust?.balance(new Date()) ?? 0n;
@@ -147,8 +173,9 @@ export const displayWalletBalances = async (walletContext: WalletContext, config
  * Required before the wallet can pay transaction fees.
  */
 export const registerNightForDust = async (walletContext: WalletContext): Promise<boolean> => {
-  const state = await Rx.firstValueFrom(
+  const state = await firstValueFromBounded(
     walletContext.wallet.state().pipe(Rx.filter((s) => isStrictlyComplete(s.unshielded.progress))),
+    'Unshielded sync before DUST registration',
   );
 
   const unregisteredNightUtxos = state.unshielded?.availableCoins.filter(

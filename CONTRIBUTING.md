@@ -33,7 +33,8 @@ Ensure the title is a clear summary of the requirement and provides enough conte
 * **Create a Branch:** Make your changes in a separate branch,
   prefixed with a short name moniker (e.g. `jill-my-feature`).
 * **Follow Coding Standards:** Adhere to the coding style guides specified in our documentation.
-* **Write Tests:** Include unit tests and integration tests to cover your changes.
+* **Write Tests:** Include unit tests to cover your changes. Tests run on Node's built-in
+  runner — `npm test` — and live in `test/`, alongside `npm run typecheck`.
 * **Commit Messages:** Write clear and concise commit messages.
 * **Submit Pull Request:** Submit your pull request to the appropriate branch in the main repository.
 * **Please do not `--force` pushes** - doing so means that reviewers will have to re-review all
@@ -44,7 +45,9 @@ Ensure the title is a clear summary of the requirement and provides enough conte
 ## Requirements for Acceptable Contributions:
 
 * **Coding Standards:** Code must adhere to the coding style guides defined in our documentation
-* **Testing:** New functionality must include corresponding unit tests and integration tests.
+* **Testing:** New functionality must include corresponding unit tests. `npm test` and
+  `npm run typecheck` must both pass; CI runs them on every pull request, along with a
+  devnet smoke test that brings the network up and funds an account end to end.
 * **Documentation:** Code changes should be accompanied by proposed relevant documentation updates.
 * **License:** All contributions must be compatible with the project's license.
   Where possible all files should have this license header:

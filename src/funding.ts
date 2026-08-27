@@ -13,6 +13,7 @@ import {
   closeWallet,
 } from './wallet.js';
 import { type Config } from './config.js';
+import { DUST_RETRY_INTERVAL_MS, withDustRetry } from './dust.js';
 
 const NIGHT_AMOUNT = 50_000n * 10n ** 6n; // 50,000 NIGHT in smallest unit
 const MAX_ACCOUNTS = 10;
@@ -111,39 +112,48 @@ export async function fundFromConfigFile(
 
     // Build recipient wallet from mnemonic and start it so we can observe funds
     const recipientWallet = await buildWallet(config, { kind: 'mnemonic', value: account.mnemonic });
-    const recipientAddress = await recipientWallet.wallet.unshielded.getAddress();
-    logger.info(`Recipient address: ${recipientWallet.unshieldedKeystore.getBech32Address().asString()}`);
 
-    // Transfer NIGHT from master
-    logger.info(`Transferring ${NIGHT_AMOUNT} NIGHT to ${account.name}...`);
-    const txId = await transferNight(masterWallet, recipientAddress, NIGHT_AMOUNT);
-    logger.info(`Transfer submitted: ${txId}`);
+    // The recipient wallet holds an open websocket. Closing it in a `finally`
+    // is what lets the process exit: if a transfer throws and the wallet is
+    // left open, the Node event loop stays alive and the run hangs forever
+    // after logging the error and tearing the network down.
+    try {
+      const recipientAddress = await recipientWallet.wallet.unshielded.getAddress();
+      logger.info(`Recipient address: ${recipientWallet.unshieldedKeystore.getBech32Address().asString()}`);
 
-    // Wait for recipient wallet to sync and see funds
-    logger.info('Waiting for recipient wallet to sync...');
-    await waitForSync(recipientWallet.wallet);
-    await waitForFunds(recipientWallet.wallet);
-    const balances = await displayWalletBalances(recipientWallet, config);
+      // Transfer NIGHT from master
+      logger.info(`Transferring ${NIGHT_AMOUNT} NIGHT to ${account.name}...`);
+      const txId = await withDustRetry(() => transferNight(masterWallet, recipientAddress, NIGHT_AMOUNT), {
+        onRetry: (n) => logger.info(`DUST not spendable yet (attempt ${n}); retrying in ${DUST_RETRY_INTERVAL_MS}ms...`),
+      });
+      logger.info(`Transfer submitted: ${txId}`);
 
-    // Register DUST for recipient
-    logger.info(`Registering DUST for ${account.name}...`);
-    await registerNightForDust(recipientWallet);
+      // Wait for recipient wallet to sync and see funds
+      logger.info('Waiting for recipient wallet to sync...');
+      await waitForSync(recipientWallet.wallet);
+      await waitForFunds(recipientWallet.wallet);
+      const balances = await displayWalletBalances(recipientWallet, config);
 
-    // Capture final balances after DUST registration
-    const finalBalances = await displayWalletBalances(recipientWallet, config);
+      // Register DUST for recipient
+      logger.info(`Registering DUST for ${account.name}...`);
+      await registerNightForDust(recipientWallet);
 
-    // Close recipient wallet
-    await closeWallet(recipientWallet);
-    logger.info(`Account ${account.name} funded and DUST registered.`);
+      // Capture final balances after DUST registration
+      const finalBalances = await displayWalletBalances(recipientWallet, config);
 
-    funded.push({
-      name: account.name,
-      unshieldedAddr: balances.unshieldedAddr,
-      shieldedAddr: balances.shieldedAddr,
-      dustAddr: balances.dustAddr,
-      nightBalance: finalBalances.unshielded + finalBalances.shielded,
-      dustBalance: finalBalances.dust,
-    });
+      logger.info(`Account ${account.name} funded and DUST registered.`);
+
+      funded.push({
+        name: account.name,
+        unshieldedAddr: balances.unshieldedAddr,
+        shieldedAddr: balances.shieldedAddr,
+        dustAddr: balances.dustAddr,
+        nightBalance: finalBalances.unshielded + finalBalances.shielded,
+        dustBalance: finalBalances.dust,
+      });
+    } finally {
+      await closeWallet(recipientWallet);
+    }
   }
 
   logger.info(`\nAll ${accountsFile.accounts.length} accounts funded with NIGHT + DUST.`);
@@ -184,7 +194,9 @@ export async function fundFromPublicKeys(
     const unshieldedAddress = UnshieldedAddress.codec.decode(config.networkId as Parameters<typeof UnshieldedAddress.codec.decode>[0], parsed);
 
     logger.info(`Transferring ${NIGHT_AMOUNT} NIGHT...`);
-    const txId = await transferNight(masterWallet, unshieldedAddress, NIGHT_AMOUNT);
+    const txId = await withDustRetry(() => transferNight(masterWallet, unshieldedAddress, NIGHT_AMOUNT), {
+      onRetry: (n) => logger.info(`DUST not spendable yet (attempt ${n}); retrying in ${DUST_RETRY_INTERVAL_MS}ms...`),
+    });
     logger.info(`Transfer submitted: ${txId}`);
 
     funded.push({

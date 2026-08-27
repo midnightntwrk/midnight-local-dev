@@ -4,19 +4,34 @@ A standalone tool for running a local Midnight development network and funding t
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Network Services](#network-services)
-- [Funding Options](#funding-options)
-  - [Option 1: Fund from Config File (NIGHT + DUST)](#option-1-fund-from-config-file-night--dust)
-  - [Option 2: Fund by Public Key (NIGHT Only)](#option-2-fund-by-public-key-night-only)
-- [Connecting Your DApp](#connecting-your-dapp)
-- [Running the Network Standalone (Without the Funding CLI)](#running-the-network-standalone-without-the-funding-cli)
-- [Accounts Config File Format](#accounts-config-file-format)
-- [Environment Variables](#environment-variables)
-- [Architecture](#architecture)
-- [Troubleshooting](#troubleshooting)
+- [Midnight Local Network](#midnight-local-network)
+  - [Table of Contents](#table-of-contents)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Headless / CI Usage](#headless--ci-usage)
+    - [Useful scripts](#useful-scripts)
+  - [Network Services](#network-services)
+  - [Funding Options](#funding-options)
+    - [Option 1: Fund from Config File (NIGHT + DUST)](#option-1-fund-from-config-file-night--dust)
+    - [Option 2: Fund by Public Key (NIGHT Only)](#option-2-fund-by-public-key-night-only)
+  - [Connecting Your DApp](#connecting-your-dapp)
+    - [Example: ZKLoan Credit Scorer CLI](#example-zkloan-credit-scorer-cli)
+    - [Example: Custom TypeScript DApp](#example-custom-typescript-dapp)
+    - [Example: UI Development (React / Vite)](#example-ui-development-react--vite)
+  - [Running the Network Standalone (Without the Funding CLI)](#running-the-network-standalone-without-the-funding-cli)
+  - [Accounts Config File Format](#accounts-config-file-format)
+  - [Environment Variables](#environment-variables)
+  - [Architecture](#architecture)
+    - [Startup Sequence](#startup-sequence)
+    - [Key Concepts](#key-concepts)
+  - [Troubleshooting](#troubleshooting)
+    - [Port already in use](#port-already-in-use)
+    - [Containers not starting](#containers-not-starting)
+    - [Wallet sync takes too long](#wallet-sync-takes-too-long)
+    - [`Insufficient Funds: could not balance dust` right after startup](#insufficient-funds-could-not-balance-dust-right-after-startup)
+    - [DUST registration fails](#dust-registration-fails)
+    - [Logs](#logs)
 
 ---
 
@@ -24,7 +39,6 @@ A standalone tool for running a local Midnight development network and funding t
 
 - **Node.js** >= 22.0.0
 - **Docker** and **Docker Compose** (v2)
-- Access to the Midnight npm registry (for `@midnight-ntwrk/*` packages)
 
 ## Installation
 
@@ -32,6 +46,10 @@ A standalone tool for running a local Midnight development network and funding t
 cd midnight-local-dev
 npm install
 ```
+
+No further setup is needed. The first `npm start` creates `.env` from
+`.env.example` automatically already filled in with working defaults and
+checks your Node version and dependencies before it does anything else.
 
 ## Quick Start
 
@@ -72,6 +90,43 @@ Choose an option:
 When you select `[4] Exit` or press `Ctrl+C`, the tool gracefully shuts down all wallets. Docker containers are only stopped if they were started by this session (reusing an existing network leaves containers running).
 
 ---
+
+## Headless / CI Usage
+
+`npm start` on its own is **interactive**: it presents a readline menu and waits
+for input, so it will hang in any environment without a TTY.
+
+Pass `--fund-config <path>` to run non-interactively instead. It is the only
+headless entry point, and it does everything the menu's option 1 does:
+
+```bash
+cp accounts.example.json accounts.json
+npm start -- --fund-config ./accounts.json
+```
+
+In this mode the tool will:
+
+- reuse an already-running network instead of prompting to restart it,
+- fund every account in the file with NIGHT and register DUST for each,
+- print the funded account details, then tear the network down and exit.
+
+Two constraints worth knowing:
+
+- The config path must resolve **inside the project directory**. A file under a
+  system temp directory is rejected, so write `accounts.json` into the repo root.
+- Each account costs a full funding round-trip, so keep the file short in CI.
+
+This is what [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs as its
+devnet smoke test.
+
+### Useful scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run typecheck` | Type-check the project (`tsc --noEmit`). |
+| `npm test` | Run the unit tests on Node's built-in test runner. |
+| `npm run devnet:health` | Check all three containers are healthy and reachable from the host. Requires bash. |
+| `npm run clean` | Stop and remove the devnet containers. |
 
 ## Network Services
 
@@ -231,11 +286,25 @@ An example file is provided at `accounts.example.json`.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure as needed:
+`.env` is created from `.env.example` on your first `npm start`, so there is
+nothing to copy by hand — it arrives populated with the values below, ready to
+edit. An existing `.env` is never overwritten, and anything already set in your
+shell takes precedence over it.
 
 | Variable | Default | Description |
 |---|---|---|
 | `DEBUG_LEVEL` | `info` | Log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `MN_NODE_PORT` | `9944` | Host port the node is published on |
+| `MN_INDEXER_PORT` | `8088` | Host port the indexer is published on |
+| `MN_PROOF_SERVER_PORT` | `6300` | Host port the proof server is published on |
+| `MN_NODE_URL` | `http://127.0.0.1:9944` | Node RPC endpoint the clients connect to |
+| `MN_NODE_WS` | `ws://127.0.0.1:9944` | Node websocket endpoint |
+| `MN_INDEXER_URL` | `http://127.0.0.1:8088/api/v4/graphql` | Indexer GraphQL endpoint |
+| `MN_INDEXER_WS` | `ws://127.0.0.1:8088/api/v4/graphql/ws` | Indexer GraphQL subscription endpoint |
+| `MN_PROOF_SERVER_URL` | `http://127.0.0.1:6300` | Proof server endpoint |
+
+The `MN_*_PORT` values control what `docker compose` publishes; the URLs control
+where the clients connect. Change both together when moving off the defaults.
 
 ---
 
@@ -325,9 +394,19 @@ Error: Bind for 0.0.0.0:9944 failed: port is already allocated
 Another process or a previous run is using the port. Stop it:
 
 ```bash
-docker compose -f standalone.yml down
+npm run clean
 # or find and kill the process
 lsof -i :9944
+```
+
+If the conflict is a second Midnight devnet you want to keep running, publish
+this one elsewhere instead. Edit `.env` and change both the port and the URL
+that goes with it:
+
+```ini
+MN_NODE_PORT=19944
+MN_NODE_URL=http://127.0.0.1:19944
+MN_NODE_WS=ws://127.0.0.1:19944
 ```
 
 ### Containers not starting
@@ -354,6 +433,17 @@ The indexer needs time to catch up with the node after startup. If sync seems st
 1. Check the indexer logs: `docker compose -f standalone.yml logs -f indexer`
 2. Verify the node is producing blocks: `curl http://localhost:9944/health`
 3. Set `DEBUG_LEVEL=debug` in `.env` for more detailed wallet logs
+
+### `Insufficient Funds: could not balance dust` right after startup
+
+On a freshly started network the genesis wallet reports a full DUST balance and
+several spendable coins within a second of the first block, but the transaction
+balancer cannot cover a fee until the chain has advanced a little further.
+
+Nothing in the wallet state distinguishes the two situations, so the funding code
+simply retries the transfer until it succeeds (up to three minutes), logging
+`DUST not spendable yet (attempt N)` while it waits. No action is needed — if you
+see this scroll past once or twice, it is working as intended.
 
 ### DUST registration fails
 
