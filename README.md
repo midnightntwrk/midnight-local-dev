@@ -1,3 +1,10 @@
+> [!WARNING]
+> **This repository is archived and no longer maintained.**
+>
+> `midnight-local-dev` ran a local Midnight network and funded test accounts. [midnight-examples](https://github.com/midnightntwrk/midnight-examples) now does both: `yarn env:up` starts a local network for any example, and `yarn fund:wallet` funds a browser wallet such as Lace with DUST.
+>
+> See [Getting started](https://github.com/midnightntwrk/midnight-examples#getting-started). This repo is read-only and will not be updated for future SDK releases.
+
 # Midnight Local Network
 
 A standalone tool for running a local Midnight development network and funding test accounts. It handles Docker container orchestration, genesis wallet initialization, NIGHT token transfers, and DUST registration — so your DApp projects can connect to a ready-to-use local blockchain without managing infrastructure themselves.
